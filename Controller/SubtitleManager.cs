@@ -43,7 +43,17 @@ namespace WhisperSubs.Controller
             var mediaPath = ResolveMediaPath(item);
             if (mediaPath == null) return;
 
-            var languages = await ResolveLanguagesAsync(mediaPath, language, cancellationToken);
+            var allLanguages = await ResolveLanguagesAsync(mediaPath, language, cancellationToken);
+            var languages = allLanguages
+                .Where(l => string.Equals(l, "en", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (languages.Count == 0)
+            {
+              _logger.LogInformation("No English audio track found for {ItemName}, skipping", item.Name);
+              return;
+            }
+
             var subtitleMode = Plugin.Instance?.Configuration?.SubtitleMode ?? SubtitleMode.Full;
 
             if (subtitleMode != SubtitleMode.TranslationOnly)
@@ -82,7 +92,7 @@ namespace WhisperSubs.Controller
             BaseItem item, ISubtitleProvider provider, string lang,
             string mediaPath, CancellationToken cancellationToken)
         {
-            var srtPath = Path.ChangeExtension(mediaPath, $".{lang}.generated.srt");
+            var srtPath = Path.ChangeExtension(mediaPath, $".{lang}.Dubtitles.srt");
             string existingSrt = "";
             double resumeOffsetSeconds = 0;
             int existingEntryCount = 0;

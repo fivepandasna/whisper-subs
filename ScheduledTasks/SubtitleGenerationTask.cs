@@ -166,7 +166,17 @@ namespace WhisperSubs.ScheduledTasks
 
                 var (item, libName) = allItems[i];
                 var itemType = item.GetType().Name;
-
+                // Skip items with no English audio track
+                var audioLangs = await manager.DetectAudioLanguagesAsync(item.Path, cancellationToken);
+                if (!audioLangs.Contains("en"))
+                {
+                  _logger.LogDebug("Skipping {ItemName}: no English audio track", item.Name);
+                 completed++;
+                 queue.ReportTaskProgress(null, completed, allItems.Count, failed);
+                 progress.Report((double)completed / allItems.Count * 100);
+                  continue;
+                }
+                
                 // For Audio items (lyrics), skip if .lrc already exists
                 if (item is MediaBrowser.Controller.Entities.Audio.Audio)
                 {
@@ -205,32 +215,9 @@ namespace WhisperSubs.ScheduledTasks
                     var dir = System.IO.Path.GetDirectoryName(mediaPath);
                     if (dir != null)
                     {
-                        var existingFiles = System.IO.Directory.GetFiles(dir, baseName + ".*.generated.srt");
-                        var noForeignMarkers = System.IO.Directory.GetFiles(dir, baseName + ".*.forced.noforeignlang");
-                        var hasFullSrt = existingFiles.Any(f => !System.IO.Path.GetFileName(f).Contains(".forced."));
 
-                        // Also check for user-provided external subtitle files (non-forced, non-generated)
-                        if (!hasFullSrt)
-                        {
-                            var subtitleExts = new[] { ".srt", ".ass", ".ssa", ".sub", ".vtt" };
-                            hasFullSrt = System.IO.Directory.GetFiles(dir, baseName + ".*")
-                                .Any(f =>
-                                {
-                                    var name = System.IO.Path.GetFileName(f);
-                                    var ext = System.IO.Path.GetExtension(f).ToLowerInvariant();
-                                    return subtitleExts.Contains(ext)
-                                        && !name.Contains(".forced.")
-                                        && !name.Contains(".generated.");
-                                });
-                        }
-
-                        // Check for embedded subtitle streams (MKV, MP4, etc.)
-                        if (!hasFullSrt && item is Video embeddedCheck && embeddedCheck.HasSubtitles)
-                        {
-                            hasFullSrt = true;
-                        }
-                        var hasForcedSrt = existingFiles.Any(f => System.IO.Path.GetFileName(f).Contains(".forced.")) || noForeignMarkers.Length > 0;
-
+                        var hasFullSrt = System.IO.Directory.GetFiles(dir, baseName + ".*.Dubtitles.srt").Length > 0;
+                        var hasForcedSrt = false;
                         var hasTranslatedSrt = false;
                         if (needsTranslation && dir != null)
                         {
