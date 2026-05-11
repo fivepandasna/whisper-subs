@@ -67,6 +67,12 @@ namespace WhisperSubs.Configuration
 
         public List<string> EnabledLibraries { get; set; } = new List<string>();
 
+        /// <summary>
+        /// Optional webhook URL to call when the scheduled task completes.
+        /// E.g. http://192.168.1.x:8080/shutdown
+        /// </summary>
+        public string TaskCompletionWebhookUrl { get; set; } = "";
+
         public PluginConfiguration()
         {
         }

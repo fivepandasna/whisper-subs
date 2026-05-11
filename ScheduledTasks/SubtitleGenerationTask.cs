@@ -277,6 +277,21 @@ namespace WhisperSubs.ScheduledTasks
 
             queue.ReportTaskProgress(null, completed, allItems.Count, failed);
             queue.ReportTaskComplete();
+
+             if (!string.IsNullOrWhiteSpace(config.TaskCompletionWebhookUrl))
+        {
+            try
+            {
+                using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                await http.GetAsync(config.TaskCompletionWebhookUrl, cancellationToken);
+                _logger.LogInformation("Fired completion webhook: {Url}", config.TaskCompletionWebhookUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Completion webhook failed: {Url}", config.TaskCompletionWebhookUrl);
+            }
+        }
+
             _logger.LogInformation("Subtitle generation task complete. Processed: {Processed}, Failed: {Failed}",
                 completed, failed);
         }
