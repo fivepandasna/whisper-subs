@@ -186,6 +186,17 @@
                         </div>
                     </div>
 
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="chkPauseOnPlayback" name="PauseOnPlayback" />
+                            <span>Pause generation during playback</span>
+                        </label>
+                        <div class="fieldDescription">
+                            When enabled, subtitle generation automatically pauses while any user is playing media
+                            and resumes when playback stops. Prevents transcoding stuttering on resource-constrained servers.
+                        </div>
+                    </div>
+
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="txtTaskCompletionWebhookUrl">Task Completion Webhook</label>
                         <input type="text" id="txtTaskCompletionWebhookUrl" name="TaskCompletionWebhookUrl" class="emby-input" placeholder="http://192.168.1.x:8080/shutdown" />
@@ -275,6 +286,11 @@
                     </div>
                 </div>
 
+                <div class="inputContainer" style="margin-top: 0.8em;">
+                    <label class="inputLabel inputLabelUnfocused" for="txtSearchItems">Search Items</label>
+                    <input type="text" id="txtSearchItems" class="emby-input" placeholder="Filter by file name or title..." maxlength="200" />
+                </div>
+
                 <div id="mediaTableContainer" style="margin-top: 1em;">
                     <table class="tblMediaInfo" style="width: 100%;">
                         <thead>
@@ -308,6 +324,8 @@
                 currentStartIndex: 0,
                 currentTotalCount: 0,
                 currentLibraryId: '',
+                currentSearchTerm: '',
+                _searchDebounceTimer: null,
                 _progressPollTimer: null,
                 _queuePollTimer: null,
                 _queueHideTimer: null,
@@ -825,6 +843,7 @@
                             page.querySelector('#chkEnableAutoGeneration').checked = config.EnableAutoGeneration || false;
                             page.querySelector('#chkEnableLyricsGeneration').checked = config.EnableLyricsGeneration || false;
                             page.querySelector('#chkEnableTranslation').checked = config.EnableTranslation || false;
+                            page.querySelector('#chkPauseOnPlayback').checked = config.PauseOnPlayback || false;
                             page.querySelector('#txtTaskCompletionWebhookUrl').value = config.TaskCompletionWebhookUrl || '';
                             updateTranslationVisibility();
                         }
@@ -848,6 +867,7 @@
                         config.EnableLyricsGeneration = page.querySelector('#chkEnableLyricsGeneration').checked;
                         var subtitleMode = parseInt(page.querySelector('#selectSubtitleMode').value, 10) || 0;
                         config.EnableTranslation = subtitleMode !== 3 && page.querySelector('#chkEnableTranslation').checked;
+                        config.PauseOnPlayback = page.querySelector('#chkPauseOnPlayback').checked;
                         config.TaskCompletionWebhookUrl = (page.querySelector('#txtTaskCompletionWebhookUrl').value || '').trim();
 
                         // Collect enabled libraries from checkboxes
@@ -906,11 +926,16 @@
 
                     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2em;">Loading...</td></tr>';
 
+                    var queryParams = {
+                        startIndex: startIndex,
+                        limit: WhisperSubsConfig.pageSize
+                    };
+                    if (WhisperSubsConfig.currentSearchTerm) {
+                        queryParams.searchTerm = WhisperSubsConfig.currentSearchTerm;
+                    }
+
                     WhisperSubsConfig.ajaxGet(
-                        ApiClient.getUrl('Plugins/WhisperSubs/Libraries/' + libraryId + '/Items', {
-                            startIndex: startIndex,
-                            limit: WhisperSubsConfig.pageSize
-                        })
+                        ApiClient.getUrl('Plugins/WhisperSubs/Libraries/' + libraryId + '/Items', queryParams)
                     ).then(function (result) {
                         tbody.innerHTML = '';
 
@@ -1237,7 +1262,22 @@
 
             document.querySelector('#selectLibrary').addEventListener('change', function (e) {
                 WhisperSubsConfig.currentStartIndex = 0;
+                WhisperSubsConfig.currentSearchTerm = '';
+                document.querySelector('#txtSearchItems').value = '';
                 WhisperSubsConfig.loadLibraryItems(e.target.value, 0);
+            });
+
+            document.querySelector('#txtSearchItems').addEventListener('input', function (e) {
+                if (WhisperSubsConfig._searchDebounceTimer) {
+                    clearTimeout(WhisperSubsConfig._searchDebounceTimer);
+                }
+                WhisperSubsConfig._searchDebounceTimer = setTimeout(function () {
+                    WhisperSubsConfig.currentSearchTerm = e.target.value.trim();
+                    WhisperSubsConfig.currentStartIndex = 0;
+                    if (WhisperSubsConfig.currentLibraryId) {
+                        WhisperSubsConfig.loadLibraryItems(WhisperSubsConfig.currentLibraryId, 0);
+                    }
+                }, 300);
             });
 
             document.querySelector('#btnPrevPage').addEventListener('click', function () {
