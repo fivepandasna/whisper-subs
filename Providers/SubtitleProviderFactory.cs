@@ -1,30 +1,36 @@
-using Microsoft.Extensions.Logging;
 using WhisperSubs.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace WhisperSubs.Providers
 {
-    internal static class SubtitleProviderFactory
+    public static class SubtitleProviderFactory
     {
+        /// <summary>
+        /// Returns the appropriate <see cref="ISubtitleProvider"/> based on configuration.
+        ///
+        /// Priority:
+        ///   1. RemoteWhisperApiUrl is set → SubgenProvider (subgen HTTP API)
+        ///   2. WhisperModelPath is set    → WhisperProvider (local whisper-cli binary)
+        ///   3. Neither set               → throws (caller should guard before calling)
+        /// </summary>
         public static ISubtitleProvider Create(PluginConfiguration config, ILoggerFactory loggerFactory)
         {
             if (!string.IsNullOrWhiteSpace(config.RemoteWhisperApiUrl))
             {
-                var model = string.IsNullOrWhiteSpace(config.RemoteWhisperModel)
-                    ? "Systran/faster-whisper-large-v3"
-                    : config.RemoteWhisperModel.Trim();
-                var apiKey = (config.RemoteWhisperApiKey ?? string.Empty).Trim();
-                return new RemoteWhisperProvider(
-                    loggerFactory.CreateLogger<RemoteWhisperProvider>(),
+                var logger = loggerFactory.CreateLogger<SubgenProvider>();
+                return new SubgenProvider(
                     config.RemoteWhisperApiUrl,
-                    model,
-                    apiKey);
+                    config.RemoteWhisperApiKey,
+                    logger);
             }
 
+            // Fall back to local whisper-cli binary
+            var localLogger = loggerFactory.CreateLogger<WhisperProvider>();
             return new WhisperProvider(
-                loggerFactory.CreateLogger<WhisperProvider>(),
-                config.WhisperModelPath,
                 config.WhisperBinaryPath,
-                config.WhisperThreadCount);
+                config.WhisperModelPath,
+                config.WhisperThreadCount,
+                localLogger);
         }
     }
 }
