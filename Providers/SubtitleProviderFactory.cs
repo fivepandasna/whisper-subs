@@ -27,10 +27,10 @@ namespace WhisperSubs.Providers
             // Fall back to local whisper-cli binary
             var localLogger = loggerFactory.CreateLogger<WhisperProvider>();
             return new WhisperProvider(
+                localLogger,
                 config.WhisperBinaryPath,
                 config.WhisperModelPath,
-                config.WhisperThreadCount,
-                localLogger);
+                config.WhisperThreadCount);
         }
     }
 }
